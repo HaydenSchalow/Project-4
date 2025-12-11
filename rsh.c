@@ -31,13 +31,21 @@ void sendmsg (char *user, char *target, char *msg) {
 	// Send a request to the server to send the message (msg) to the target user (target)
 	// by creating the message structure and writing it to server's FIFO
 
+	int fd;
+    	struct message m;
 
+    	strcpy(m.source, user);
+    	strcpy(m.target, target);
+    	strcpy(m.msg, msg);
 
+    	fd = open("serverFIFO", O_WRONLY);
+    	if (fd < 0) {
+    	    perror("open serverFIFO");
+    	    return;
+    	}
 
-
-
-
-
+    	write(fd, &m, sizeof(struct message));
+    	close(fd);
 }
 
 void* messageListener(void *arg) {
@@ -48,12 +56,31 @@ void* messageListener(void *arg) {
 	// following format
 	// Incoming message from [source]: [message]
 	// put an end of line at the end of the message
+	
+    char fifoName[50];
+    int fd;
+    struct message incoming;
 
+    sprintf(fifoName, "%s", uName);   // FIFO is named exactly as the username
 
+    fd = open(fifoName, O_RDONLY);
+    if (fd < 0) {
+        perror("open user FIFO");
+        pthread_exit((void*)0);
+    }
 
+    while (1) {
+        int n = read(fd, &incoming, sizeof(struct message));
+        if (n > 0) {
+            printf("Incoming message from %s: %s\n",
+                   incoming.source,
+                   incoming.msg);
+            fflush(stdout);
+        }
+    }
 
-
-
+    close(fd);
+	
 	pthread_exit((void*)0);
 }
 
@@ -86,10 +113,10 @@ int main(int argc, char **argv) {
     // TODO:
     // create the message listener thread
 
+	pthread_t tid;
+	pthread_create(&tid, NULL, messageListener, NULL);
 
-
-
-
+	
     while (1) {
 
 	fprintf(stderr,"rsh>");
@@ -124,14 +151,19 @@ int main(int argc, char **argv) {
 		// if no message is specified, you should print the followingA
  		// printf("sendmsg: you have to enter a message\n");
 
+    char *target = strtok(NULL, " ");
+    if (target == NULL) {
+        printf("sendmsg: you have to specify target user\n");
+        continue;
+    }
 
+    char *msg = strtok(NULL, "");
+    if (msg == NULL) {
+        printf("sendmsg: you have to enter a message\n");
+        continue;
+    }
 
-
-
-
-
-
-
+    sendmsg(uName, target, msg);
 
 		continue;
 	}
